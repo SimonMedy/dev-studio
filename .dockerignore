@@ -1,0 +1,5 @@
+# Tout exclure par défaut
+**
+
+# Garder uniquement ce qui est nécessaire au build
+!Dockerfile

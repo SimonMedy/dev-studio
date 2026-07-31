@@ -1,0 +1,40 @@
+# Secrets et variables locales
+.env
+.env.*
+!.env.example
+
+# Secrets locaux
+secrets/
+*.secret
+*.key
+*.pem
+
+# Configuration locale
+.vscode/
+.idea/
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Fichiers temporaires
+tmp/
+temp/
+*.tmp
+*.swp
+*.swo
+
+# Build et dépendances éventuelles
+node_modules/
+dist/
+build/
+coverage/
+
+# Archives
+*.tar
+*.tar.gz
+*.zip

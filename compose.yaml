@@ -1,0 +1,25 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: yxtomix-dev-studio:latest
+    container_name: dev-studio
+    restart: unless-stopped
+
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: Europe/Paris
+      DEFAULT_WORKSPACE: /config/workspace
+
+      PASSWORD: ${CODE_SERVER_PASSWORD:?CODE_SERVER_PASSWORD doit être défini}
+      SUDO_PASSWORD: ${SUDO_PASSWORD:-}
+
+    volumes:
+      - /DATA/AppData/${AppID:-dev-studio}/config:/config
+      - /DATA/Workspace:/config/workspace
+
+    ports:
+      - "8443:8443"
