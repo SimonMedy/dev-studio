@@ -1,4 +1,57 @@
 services:
+  certs-init:
+    image: alpine:3.22
+    container_name: dev-docker-init
+    restart: "no"
+
+    command:
+      - sh
+      - -c
+      - |
+        mkdir -p /certs /docker-data
+        chown -R 1000:1000 /certs /docker-data
+        chmod 700 /certs /docker-data
+
+    volumes:
+      - dev-docker-certs:/certs
+      - dev-docker-data:/docker-data
+
+  dev-docker:
+    image: docker:29-dind-rootless
+    container_name: dev-docker
+    restart: unless-stopped
+    privileged: true
+
+    depends_on:
+      certs-init:
+        condition: service_completed_successfully
+
+    environment:
+      DOCKER_TLS_CERTDIR: /certs
+      DOCKER_TLS_SAN: DNS:dev-docker
+      TINI_SUBREAPER: "1"
+
+    volumes:
+      # Données persistantes du Docker de développement
+      - dev-docker-data:/home/rootless/.local/share/docker
+
+      # Certificats TLS générés par DinD
+      - dev-docker-certs:/certs
+
+      # Même chemin dans les deux services pour les bind mounts
+      - /DATA/Workspace:/config/workspace
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "DOCKER_HOST=unix:///run/user/1000/docker.sock docker info >/dev/null 2>&1"
+        ]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
   app:
     build:
       context: .
@@ -7,6 +60,10 @@ services:
     image: yxtomix-dev-studio:latest
     container_name: dev-studio
     restart: unless-stopped
+
+    depends_on:
+      dev-docker:
+        condition: service_healthy
 
     environment:
       PUID: "1000"
@@ -17,9 +74,21 @@ services:
       PASSWORD: ${CODE_SERVER_PASSWORD:?CODE_SERVER_PASSWORD doit être défini}
       SUDO_PASSWORD: ${SUDO_PASSWORD:-}
 
+      # Connexion TLS au Docker de développement
+      DOCKER_HOST: tcp://dev-docker:2376
+      DOCKER_TLS_VERIFY: "1"
+      DOCKER_CERT_PATH: /certs/client
+
     volumes:
       - /DATA/AppData/${AppID:-dev-studio}/config:/config
       - /DATA/Workspace:/config/workspace
 
+      # Le client Docker lit uniquement ses certificats
+      - dev-docker-certs:/certs:ro
+
     ports:
       - "8443:8443"
+
+volumes:
+  dev-docker-data:
+  dev-docker-certs:
