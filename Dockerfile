@@ -7,6 +7,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # ── 1. Dépendances système ──
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        bubblewrap \
         build-essential \
         ca-certificates \
         curl \
