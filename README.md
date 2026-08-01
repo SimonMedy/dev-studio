@@ -67,6 +67,7 @@ dev-studio/
 ├── deploy.sh
 ├── README.md
 ├── LICENSE
+├── .env.example
 ├── .gitignore
 └── .dockerignore
 ```
@@ -77,12 +78,12 @@ Le fichier `.env` est créé localement et ne doit pas être versionné.
 
 - Docker ;
 - Docker Compose v2 ;
-- un système Linux compatible avec les chemins `/DATA` ;
+- un système Linux compatible avec Docker-in-Docker rootless ;
 - une architecture `amd64` ;
-- le support nécessaire à Docker-in-Docker rootless ;
+- un emplacement persistant pour la configuration et le workspace ;
 - Tailscale, uniquement pour l’accès HTTPS privé à distance.
 
-Ce projet est principalement prévu pour ZimaOS.
+Ce projet est principalement prévu pour ZimaOS, mais les chemins hôte peuvent être adaptés avec le fichier `.env`.
 
 Il est lancé directement avec Docker Compose, sans passer par l’interface d’applications ZimaOS.
 
@@ -132,18 +133,20 @@ Le client Docker communique uniquement avec `dev-docker`.
 
 ## Stockage persistant
 
-### Données présentes sur l’hôte
+Les chemins hôte sont définis dans le fichier `.env`.
 
-```text
-/DATA/AppData/dev-studio/config
-/DATA/Workspace
+Exemple pour ZimaOS :
+
+```dotenv
+HOST_CONFIG_PATH=/DATA/AppData/dev-studio/config
+HOST_WORKSPACE_PATH=/DATA/Workspace
 ```
 
 Correspondance dans `dev-studio` :
 
 ```text
-/DATA/AppData/dev-studio/config -> /config
-/DATA/Workspace                  -> /config/workspace
+HOST_CONFIG_PATH    -> /config
+HOST_WORKSPACE_PATH -> /config/workspace
 ```
 
 Le dossier `/config` contient notamment :
@@ -154,11 +157,7 @@ Le dossier `/config` contient notamment :
 - les configurations et authentifications des outils ;
 - les données persistantes de l’environnement.
 
-Les projets sont stockés séparément dans :
-
-```text
-/DATA/Workspace
-```
+Les projets sont stockés séparément dans le chemin défini par `HOST_WORKSPACE_PATH`.
 
 ### Volumes Docker nommés
 
@@ -194,11 +193,20 @@ Ne pas utiliser `-v` sauf si la réinitialisation complète du Docker de dévelo
 
 ## Configuration
 
-Créer un fichier `.env` à la racine du projet :
+Copier le fichier d’exemple :
+
+```bash
+cp .env.example .env
+```
+
+Puis modifier `.env` :
 
 ```dotenv
 CODE_SERVER_PASSWORD=REMPLACER_PAR_UN_MOT_DE_PASSE_SOLIDE
 SUDO_PASSWORD=REMPLACER_PAR_UN_AUTRE_MOT_DE_PASSE_SOLIDE
+
+HOST_CONFIG_PATH=/DATA/AppData/dev-studio/config
+HOST_WORKSPACE_PATH=/DATA/Workspace
 ```
 
 Protéger le fichier :
@@ -216,7 +224,16 @@ Le fichier `.env` ne doit jamais être ajouté au dépôt Git.
 ```dotenv
 CODE_SERVER_PASSWORD=REMPLACER_PAR_UN_MOT_DE_PASSE_SOLIDE
 SUDO_PASSWORD=
+
+HOST_CONFIG_PATH=/DATA/AppData/dev-studio/config
+HOST_WORKSPACE_PATH=/DATA/Workspace
 ```
+
+`HOST_CONFIG_PATH` définit le dossier hôte utilisé pour la configuration persistante de code-server.
+
+`HOST_WORKSPACE_PATH` définit le dossier hôte contenant les projets.
+
+Le même `HOST_WORKSPACE_PATH` est monté dans `dev-studio` et `dev-docker` afin que les bind mounts Docker Compose fonctionnent correctement.
 
 ## Installation et déploiement
 
@@ -324,8 +341,8 @@ sudo docker compose down
 
 Cette commande ne supprime pas :
 
-- `/DATA/AppData/dev-studio/config` ;
-- `/DATA/Workspace` ;
+- le contenu de `HOST_CONFIG_PATH` ;
+- le contenu de `HOST_WORKSPACE_PATH` ;
 - les volumes Docker nommés.
 
 ## Utilisation de Docker dans Dev Studio
@@ -385,7 +402,13 @@ Le workspace est monté au même chemin dans `dev-studio` et `dev-docker` :
 
 Cette correspondance est nécessaire pour que les bind mounts relatifs utilisés par Docker Compose fonctionnent correctement.
 
-Par exemple, un projet situé dans :
+Par exemple, avec :
+
+```dotenv
+HOST_WORKSPACE_PATH=/DATA/Workspace
+```
+
+un projet situé dans :
 
 ```text
 /DATA/Workspace/Projets/MonProjet
@@ -397,9 +420,30 @@ est visible dans les deux services sous :
 /config/workspace/Projets/MonProjet
 ```
 
+## Wrapper hôte OpenCode et Codex
+
+Le wrapper hôte peut lire `HOST_WORKSPACE_PATH` depuis le fichier `.env` afin de traduire automatiquement le dossier courant de l’hôte vers `/config/workspace`.
+
+Le wrapper doit lire uniquement cette variable et ne pas charger tout le fichier `.env` avec `source`, car les mots de passe peuvent contenir des caractères interprétés par Bash.
+
+Exemple de chemin du wrapper :
+
+```text
+/DATA/.local/bin/dev-studio-cli
+```
+
+Les commandes hôte :
+
+```text
+opencode
+codex
+```
+
+peuvent être exposées avec des liens symboliques vers ce wrapper.
+
 ## Accès aux ports des projets
 
-Les ports publiés par les conteneurs du Docker imbriqué sont exposés sur `dev-docker`, pas automatiquement sur le NAS.
+Les ports publiés par les conteneurs du Docker imbriqué sont exposés sur `dev-docker`, pas automatiquement sur l’hôte.
 
 Par exemple :
 
@@ -477,8 +521,8 @@ Pour actualiser l’image de base, OpenCode, Codex et les autres outils concern�
 Le script conserve :
 
 ```text
-/DATA/AppData/dev-studio/config
-/DATA/Workspace
+HOST_CONFIG_PATH
+HOST_WORKSPACE_PATH
 dev-studio_dev-docker-data
 dev-studio_dev-docker-certs
 ```
@@ -503,7 +547,7 @@ sudo docker compose down -v
 ./deploy.sh
 ```
 
-Cette opération ne supprime pas `/DATA/Workspace`, mais supprime entièrement l’état interne de `dev-docker`.
+Cette opération ne supprime pas le contenu de `HOST_WORKSPACE_PATH`, mais supprime entièrement l’état interne de `dev-docker`.
 
 ## Vérification des outils
 
@@ -601,11 +645,11 @@ sudo docker exec --user abc dev-studio docker image prune -f
 - Privilégier Tailscale Serve pour l’accès distant.
 - Ne pas utiliser Tailscale Funnel sans besoin explicite.
 - Ne pas monter `/var/run/docker.sock` dans `dev-studio`.
-- Le Docker de développement est séparé du Docker principal de l'hôte.
+- Le Docker de développement est séparé du Docker principal de l’hôte.
 - `dev-docker` utilise le mode rootless, mais son conteneur parent nécessite `privileged: true` pour Docker-in-Docker.
-- Les outils exécutés dans Dev Studio peuvent modifier les fichiers présents dans `/DATA/Workspace`.
+- Les outils exécutés dans Dev Studio peuvent modifier les fichiers présents dans `HOST_WORKSPACE_PATH`.
 - Les outils peuvent créer librement des images et conteneurs dans le Docker de développement.
-- Ils ne peuvent pas administrer directement les autres conteneurs du NAS.
+- Ils ne peuvent pas administrer directement les autres conteneurs de l’hôte.
 - Vérifier les modifications proposées par les assistants IA avant un déploiement sensible.
 
 ## Composants tiers

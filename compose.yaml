@@ -39,7 +39,7 @@ services:
       - dev-docker-certs:/certs
 
       # Même chemin dans les deux services pour les bind mounts
-      - /DATA/Workspace:/config/workspace
+      - "${HOST_WORKSPACE_PATH:?HOST_WORKSPACE_PATH doit être défini}:/config/workspace"
 
     healthcheck:
       test:
@@ -80,8 +80,8 @@ services:
       DOCKER_CERT_PATH: /certs/client
 
     volumes:
-      - /DATA/AppData/${AppID:-dev-studio}/config:/config
-      - /DATA/Workspace:/config/workspace
+      - "${HOST_CONFIG_PATH:?HOST_CONFIG_PATH doit être défini}:/config"
+      - "${HOST_WORKSPACE_PATH:?HOST_WORKSPACE_PATH doit être défini}:/config/workspace"
 
       # Le client Docker lit uniquement ses certificats
       - dev-docker-certs:/certs:ro
@@ -90,5 +90,5 @@ services:
       - "8443:8443"
 
 volumes:
-  dev-docker-data:
+  dev-docker-data:  
   dev-docker-certs:
