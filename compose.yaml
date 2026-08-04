@@ -21,6 +21,8 @@ services:
     container_name: dev-docker
     restart: unless-stopped
     privileged: true
+    # Ports publiés des conteneurs internes → directement sur l'hôte
+    network_mode: host
 
     depends_on:
       certs-init:
@@ -65,6 +67,11 @@ services:
       dev-docker:
         condition: service_healthy
 
+    # Le démon n'a plus d'IP sur le réseau compose (mode host) :
+    # on le joint via l'IP du bridge hôte (gateway dev_default)
+    extra_hosts:
+      - "dev-docker:172.20.0.1"
+
     environment:
       PUID: "1000"
       PGID: "1000"
@@ -79,6 +86,8 @@ services:
       DOCKER_TLS_VERIFY: "1"
       DOCKER_CERT_PATH: /certs/client
 
+      ENABLE_OPENCODE_SERVER: ${ENABLE_OPENCODE_SERVER:-false}
+
     volumes:
       - "${HOST_CONFIG_PATH:?HOST_CONFIG_PATH doit être défini}:/config"
       - "${HOST_WORKSPACE_PATH:?HOST_WORKSPACE_PATH doit être défini}:/config/workspace"
@@ -86,8 +95,11 @@ services:
       # Le client Docker lit uniquement ses certificats
       - dev-docker-certs:/certs:ro
 
+      - "./root/custom-services.d:/custom-services.d:ro"
+
     ports:
       - "8443:8443"
+      - "4096:4096"
 
 volumes:
   dev-docker-data:  

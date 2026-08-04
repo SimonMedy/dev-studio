@@ -1,0 +1,35 @@
+#!/usr/bin/with-contenv bash
+set -Eeuo pipefail
+
+if [[ "${ENABLE_OPENCODE_SERVER:-false}" != "true" ]]; then
+  echo "[opencode] Serveur distant désactivé."
+  exec sleep infinity
+fi
+
+if [[ -f /config/.config/opencode/see-image.env ]]; then
+  source /config/.config/opencode/see-image.env
+fi
+
+if [[ ! -f /config/.config/opencode/server.env ]]; then
+  echo "[opencode] ERREUR : /config/.config/opencode/server.env absent."
+  echo "[opencode] Crée ce fichier ou définis ENABLE_OPENCODE_SERVER=false."
+  exit 1
+fi
+
+source /config/.config/opencode/server.env
+
+if [[ -z "${OPENCODE_SERVER_PASSWORD:-}" ]]; then
+  echo "[opencode] ERREUR : OPENCODE_SERVER_PASSWORD est vide."
+  exit 1
+fi
+
+export OPENCODE_SERVER_USERNAME="${OPENCODE_SERVER_USERNAME:-opencode}"
+
+cd /config/workspace
+
+echo "[opencode] Démarrage sur 0.0.0.0:4096"
+
+exec s6-setuidgid abc \
+  opencode serve \
+    --hostname 0.0.0.0 \
+    --port 4096
